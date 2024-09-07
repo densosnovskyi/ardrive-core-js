@@ -1,4 +1,4 @@
-import { serializeTags } from 'arbundles/src/parser';
+import { serializeTags } from 'mm-arbundles/src';
 import { ByteCount, EID, FeeMultiple, GQLTagInterface, UploadStats } from '../types';
 import {
 	ArFSUploadPlannerConstructorParams,

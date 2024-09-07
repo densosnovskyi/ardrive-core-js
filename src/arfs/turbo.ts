@@ -1,4 +1,4 @@
-import { DataItem } from 'arbundles';
+import { DataItem } from 'mm-arbundles';
 import { createAxiosInstance } from '../utils/axiosClient';
 import { AxiosInstance } from 'axios';
 

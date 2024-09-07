@@ -42,14 +42,14 @@ import { stub } from 'sinon';
 import { expect } from 'chai';
 import { expectAsyncErrorThrow, getDecodedTags } from '../../tests/test_helpers';
 import { deriveFileKey, driveDecrypt, fileDecrypt } from '../utils/crypto';
-import { createData, DataItem } from 'arbundles';
+import { createData, DataItem } from 'mm-arbundles';
 import { ArFSTagSettings } from './arfs_tag_settings';
 import { BundleResult, FileResult, FolderResult } from './arfs_entity_result_factory';
 import { NameConflictInfo } from '../utils/mapper_functions';
 import { emptyV2TxPlans } from '../types/upload_planner_types';
 import { GatewayAPI } from '../utils/gateway_api';
 import Transaction from 'arweave/node/lib/transaction';
-import { ArweaveSigner } from 'arbundles/src/signing';
+import { ArweaveSigner } from 'mm-arbundles/src/signing';
 import { JWKWallet } from '../jwk_wallet';
 
 describe('The ArFSDAO class', () => {
