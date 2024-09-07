@@ -79,7 +79,8 @@ import {
 	defaultMaxConcurrentChunks,
 	ENCRYPTED_DATA_PLACEHOLDER,
 	defaultTurboPaymentUrl,
-	defaultTurboUploadUrl
+	defaultTurboUploadUrl,
+	gqlTagNameRecord
 } from '../utils/constants';
 import { PrivateKeyData } from './private_key_data';
 import {
@@ -107,7 +108,7 @@ import {
 	fileConflictInfoMap,
 	folderToNameAndIdMap
 } from '../utils/mapper_functions';
-import { buildQuery, ASCENDING_ORDER } from '../utils/query';
+import { buildQuery, ASCENDING_ORDER, DESCENDING_ORDER } from '../utils/query';
 import { Wallet } from '../wallet';
 import { JWKWallet } from '../jwk_wallet';
 import { PromiseCache } from '@ardrive/ardrive-promise-cache';
@@ -177,8 +178,8 @@ import {
 } from './tx/arfs_tx_data_types';
 import { ArFSTagAssembler } from './tags/tag_assembler';
 import { assertDataRootsMatch, rePrepareV2Tx } from '../utils/arfsdao_utils';
-import { ArFSDataToUpload, ArFSFolderToUpload, DrivePrivacy } from '../exports';
-import { Turbo } from './turbo';
+import { ArFSDataToUpload, ArFSFolderToUpload, DrivePrivacy, errorMessage } from '../exports';
+import { Turbo, TurboCachesResponse } from './turbo';
 import { ArweaveSigner } from 'arbundles/src/signing';
 import { TurboUploadDataItemResponse } from '@ardrive/turbo-sdk';
 
@@ -1543,16 +1544,31 @@ export class ArFSDAO extends ArFSDAOAnonymous {
 			const { edges } = transactions;
 			hasNextPage = transactions.pageInfo.hasNextPage;
 
-			const folders: Promise<ArFSPrivateFolder>[] = edges.map(async (edge: GQLEdgeInterface) => {
-				cursor = edge.cursor;
-				const { node } = edge;
-				const folderBuilder = ArFSPrivateFolderBuilder.fromArweaveNode(node, this.gatewayApi, driveKey);
-				// Build the folder so that we don't add something invalid to the cache
-				const folder = await folderBuilder.build(node);
-				const cacheKey = { folderId: folder.entityId, owner, driveKey };
-				return this.caches.privateFolderCache.put(cacheKey, Promise.resolve(folder));
+			const folderPromises: Promise<ArFSPrivateFolder | null>[] = edges.map(async (edge: GQLEdgeInterface) => {
+				try {
+					cursor = edge.cursor;
+					const { node } = edge;
+					const folderBuilder = ArFSPrivateFolderBuilder.fromArweaveNode(node, this.gatewayApi, driveKey);
+					// Build the folder so that we don't add something invalid to the cache
+					const folder = await folderBuilder.build(node);
+					const cacheKey = { folderId: folder.entityId, owner, driveKey };
+					return this.caches.privateFolderCache.put(cacheKey, Promise.resolve(folder));
+				} catch (e) {
+					// If the folder is broken, skip it
+					if (e instanceof SyntaxError) {
+						console.error(`Error building folder. Skipping... Error: ${e}`);
+						return null;
+					}
+
+					throw e;
+				}
 			});
-			allFolders.push(...(await Promise.all(folders)));
+
+			const folders = await Promise.all(folderPromises);
+
+			// Filter out null values
+			const validFolders = folders.filter((f) => f !== null) as ArFSPrivateFolder[];
+			allFolders.push(...(await Promise.all(validFolders)));
 		}
 
 		return latestRevisionsOnly ? allFolders.filter(latestRevisionFilter) : allFolders;
@@ -1791,6 +1807,38 @@ export class ArFSDAO extends ArFSDAOAnonymous {
 			folderId,
 			await this.getAllFoldersOfPublicDrive({ driveId, owner, latestRevisionsOnly: true })
 		);
+	}
+
+	public async isPublicDrive(driveId: DriveID, address: ArweaveAddress): Promise<boolean> {
+		const gqlQuery = buildQuery({
+			tags: [
+				{ name: 'Entity-Type', value: 'drive' },
+				{ name: 'Drive-Id', value: `${driveId}` }
+			],
+			owner: address,
+			sort: DESCENDING_ORDER
+		});
+
+		const transactions = await this.gatewayApi.gqlRequest(gqlQuery);
+
+		const drivePrivacyFromTag = transactions.edges[0].node.tags.find(
+			(t) => t.name === gqlTagNameRecord.drivePrivacy
+		);
+
+		return drivePrivacyFromTag?.value === 'public';
+	}
+
+	public async assertDrivePrivacy(driveId: DriveID, address: ArweaveAddress, driveKey?: DriveKey): Promise<void> {
+		const _isPublicDrive = await this.isPublicDrive(driveId, address);
+
+		// Private drive uploads require a drive key
+		if (!_isPublicDrive && !driveKey) {
+			throw new Error(errorMessage.privateDriveRequiresDriveKey);
+		}
+
+		if (_isPublicDrive && driveKey) {
+			throw new Error(errorMessage.publicDriveDoesNotRequireDriveKey);
+		}
 	}
 
 	public async getOwnerAndAssertDrive(driveId: DriveID, driveKey?: DriveKey): Promise<ArweaveAddress> {

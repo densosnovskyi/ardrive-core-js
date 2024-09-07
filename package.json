@@ -1,6 +1,6 @@
 {
-	"name": "ardrive-core-js",
-	"version": "2.0.3",
+	"name": "mm-ardrive-core-js",
+	"version": "1.1.0",
 	"description": "ArDrive Core contains the essential back end application features to support the ArDrive CLI and Desktop apps, such as file management, Permaweb upload/download, wallet management and other common functions.",
 	"main": "./lib/exports.js",
 	"types": "./lib/exports.d.ts",
@@ -19,7 +19,7 @@
 		"bignumber.js": "^9.1.2",
 		"bn.js": "^5.2.1",
 		"futoin-hkdf": "^1.5.3",
-		"human-crypto-keys": "git+https://github.com/ardriveapp/js-human-crypto-keys.git#expose_lib",
+		"human-crypto-keys": "^0.1.4",
 		"jwk-to-pem": "^2.0.5",
 		"lodash": "^4.17.21",
 		"mime-types": "^2.1.35",
@@ -99,5 +99,8 @@
 	},
 	"files": [
 		"lib/**/*"
-	]
+	],
+	"overrides": {
+		"avsc": "5.4.6"
+	}
 }
